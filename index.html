@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>图片转文字喵喵工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #5e6b7c;
+            --accent-color: #8c9eff;
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-color: #2c3e50;
+            --border-radius: 16px;
+            --selected-border: #ff2442;
+        }
+
+        * { -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(#e0e5ec 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            padding: 30px;
+            box-sizing: border-box;
+            border: 1px solid #eef2f5;
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 26px;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .external-tool {
+            background: #f8f9fa;
+            border: 1px dashed #cbd5e0;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 14px;
+            color: #666;
+        }
+        .external-tool a {
+            color: var(--primary-color);
+            font-weight: bold;
+            text-decoration: none;
+            border-bottom: 1px solid var(--primary-color);
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            background: #f0f2f5;
+            padding: 5px;
+            border-radius: 10px;
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 12px 0;
+            cursor: pointer;
+            font-weight: bold;
+            color: #7f8c8d;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-size: 15px;
+        }
+        .tab.active {
+            background: white;
+            color: var(--primary-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .input-group { display: none; margin-bottom: 20px; }
+        .input-group.active { display: block; }
+
+        .upload-trigger {
+            display: block;
+            box-sizing: border-box;
+            width: 100%;
+            border: 2px dashed #cfd8dc;
+            padding: 30px 20px;
+            text-align: center;
+            border-radius: 12px;
+            cursor: pointer;
+            color: #7f8c8d;
+            transition: all 0.3s;
+            background: #fff;
+        }
+        .upload-trigger:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            background: #fcfdfe;
+        }
+
+        #fileInput { display: none !important; }
+
+        textarea.link-input {
+            width: 100%;
+            height: 100px;
+            padding: 12px;
+            border: 1px solid #e0e6ed;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 14px;
+            resize: vertical;
+            font-family: monospace;
+            background: #fafbfc;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .manage-btn {
+            font-size: 13px;
+            color: var(--primary-color);
+            background: none;
+            border: 1px solid var(--primary-color);
+            padding: 4px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .manage-btn.active { background: var(--primary-color); color: white; }
+
+        .preview-area {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 12px;
+            min-height: 20px;
+            padding: 5px;
+        }
+        
+        .preview-item {
+            position: relative;
+            aspect-ratio: 3/4;
+            border-radius: 8px;
+            overflow: visible;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 2px solid transparent;
+            background: #fff;
+            transition: border 0.1s; 
+            touch-action: pan-y; 
+            -webkit-user-drag: none; 
+        }
+        
+        .preview-item.sliced::after {
+            content: '✂️分段';
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background: rgba(94, 107, 124, 0.8);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            pointer-events: none;
+        }
+
+        .preview-item.deleting {
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform: scale(0.5);
+            opacity: 0;
+            filter: grayscale(100%) brightness(50%) sepia(100%) hue-rotate(-50deg) saturate(600%) contrast(0.8);
+        }
+
+        .preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+
+        .preview-index {
+            position: absolute;
+            top: -6px;
+            left: -6px;
+            width: 20px;
+            height: 20px;
+            background: #333;
+            color: white;
+            border-radius: 50%;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .sortable-ghost {
+            opacity: 0.8;
+            background-color: #fffbe6 !important;
+            border: 2px dashed #ffc107 !important;
+            box-shadow: inset 0 0 10px rgba(255, 193, 7, 0.2);
+            transform: none !important;
+        }
+        .sortable-ghost img { opacity: 0; }
+        
+        .sortable-chosen {
+            transform: scale(1.05);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+            z-index: 9999;
+            background: #fff;
+        }
+
+        .sortable-drag {
+            opacity: 1 !important;
+            background: #fff;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3) !important;
+            transform: scale(1.1);
+            border: 2px solid var(--primary-color);
+            cursor: grabbing;
+        }
+
+        .preview-item.selection-mode { cursor: pointer; }
+        .preview-item.selected {
+            border-color: var(--selected-border);
+            transform: scale(0.95);
+        }
+        .preview-item.selected::after {
+            content: '✔';
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: var(--selected-border);
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 11;
+        }
+        .preview-item.done::before {
+            content: '完成';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(94, 107, 124, 0.9);
+            color: white;
+            font-size: 10px;
+            text-align: center;
+            padding: 3px 0;
+            z-index: 5;
+            border-bottom-left-radius: 6px;
+            border-bottom-right-radius: 6px;
+        }
+
+        .batch-actions {
+            display: none;
+            margin-top: 15px;
+            padding: 10px;
+            background: #f0f2f5;
+            border-radius: 8px;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .batch-actions.show { display: flex; }
+        .batch-btn-group { display: flex; gap: 8px; }
+        .batch-btn {
+            padding: 6px 12px;
+            border: 1px solid #cfd8dc;
+            background: white;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #555;
+        }
+        .batch-btn.danger {
+            color: white;
+            background: #ff4d4f;
+            border-color: #ff4d4f;
+        }
+
+        .load-url-btn {
+            margin-top: 10px;
+            padding: 8px 20px;
+            background: #fff;
+            border: 1px solid #cfd8dc;
+            color: #555;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        button.action-btn {
+            width: 100%;
+            padding: 16px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+            box-shadow: 0 4px 12px rgba(94, 107, 124, 0.3);
+        }
+        button.action-btn:disabled { background-color: #cfd8dc; cursor: not-allowed; }
+
+        .progress-container { margin-top: 25px; display: none; }
+        .progress-bar-bg {
+            width: 100%;
+            height: 10px;
+            background-color: #eef2f5;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background-color: var(--primary-color);
+            transition: width 0.5s ease-out;
+            border-radius: 5px;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 13px;
+            color: #7f8c8d;
+        }
+        .result-area { margin-top: 35px; }
+        textarea.result-box {
+            width: 100%;
+            height: 400px;
+            padding: 20px;
+            border: 1px solid #e0e6ed;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 15px;
+            line-height: 1.8;
+            resize: vertical;
+            box-sizing: border-box;
+            background: #fafbfc;
+            color: #333;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        .result-actions {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .copy-btn, .restart-btn {
+            flex: 1;
+            padding: 12px 0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            border: 1px solid;
+            float: none;
+            margin: 0;
+        }
+
+        .copy-btn {
+            background-color: #333;
+            color: white;
+            border-color: #333;
+        }
+        .copy-btn:hover { background-color: #000; border-color: #000; }
+
+        .restart-btn {
+            background-color: #fff;
+            color: #666;
+            border-color: #ddd;
+        }
+        .restart-btn:hover {
+            background-color: #f5f5f5;
+            border-color: #ccc;
+            color: #333;
+        }
+
+        /* 灯箱 */
+        .lightbox {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            touch-action: none; 
+        }
+        .lightbox.active { display: flex; }
+        .lightbox-content {
+            position: relative;
+            width: 100%; 
+            height: 85vh; 
+            display: flex; 
+            align-items: flex-start; 
+            justify-content: center;
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; 
+            scrollbar-width: none; 
+            -ms-overflow-style: none;
+        }
+        .lightbox-content::-webkit-scrollbar { display: none; }
+        .lightbox img {
+            width: auto;
+            max-width: 100%;
+            height: auto;
+            max-height: none; 
+            object-fit: contain;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            transition: opacity 0.2s ease;
+            margin: auto 0; 
+        }
+        .lightbox-nav {
+            position: absolute;
+            top: 0; bottom: 0; width: 25%; z-index: 1001;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.3s;
+            cursor: pointer; -webkit-tap-highlight-color: transparent; outline: none;
+        }
+        @media (hover: hover) { .lightbox-nav:hover { opacity: 1; } }
+        .lightbox-nav.prev { left: 0; }
+        .lightbox-nav.next { right: 0; }
+        .nav-arrow {
+            color: white; font-size: 30px;
+            background: rgba(255,255,255,0.3);
+            width: 40px; height: 40px; border-radius: 50%;
+            text-align: center; line-height: 40px;
+            backdrop-filter: blur(5px);
+        }
+        .lightbox-footer { margin-top: 15px; color: #ccc; font-size: 14px; text-align: center; z-index: 1002; }
+        .lightbox-close-btn {
+            border: 1px solid #aaa; color: #eee; padding: 6px 20px;
+            border-radius: 20px; margin-top: 10px; display: inline-block; cursor: pointer;
+        }
+
+        /* 弹窗 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(2px);
+        }
+        .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease; }
+        .modal-box {
+            background: white; width: 80%; max-width: 320px;
+            border-radius: 16px; padding: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            text-align: center;
+            transform: scale(0.9);
+            animation: popIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+        }
+        .modal-title { font-size: 18px; font-weight: bold; color: var(--primary-color); margin-bottom: 12px; }
+        .modal-content { font-size: 14px; color: #666; margin-bottom: 24px; line-height: 1.6; }
+        .modal-actions { display: flex; gap: 12px; justify-content: center; }
+        .modal-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; font-size: 14px; font-weight: bold; cursor: pointer; }
+        .modal-btn.cancel { background: #f0f2f5; color: #666; }
+        .modal-btn.confirm { background: #ff4d4f; color: white; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { to { transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>图片转文字喵喵工具</h1>
+
+    <div class="external-tool">
+        需要提取链接？请先使用这个工具：<br>
+        <a href="https://dy.kukutool.com/xiaohongshu" target="_blank">🔗 点击打开：小红书图片链接提取工具</a>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('upload')">上传图片</div>
+        <div class="tab" onclick="switchTab('url')">图片链接</div>
+    </div>
+
+    <div id="group-upload" class="input-group active">
+        <label for="fileInput" class="upload-trigger">
+            点击这里选择图片 (支持多选)
+        </label>
+        <input type="file" id="fileInput" accept="image/*" multiple onchange="handleFileSelect()">
+    </div>
+
+    <div id="group-url" class="input-group">
+        <textarea id="urlInput" class="link-input" placeholder="请在这里粘贴图片链接..."></textarea>
+        <div style="text-align: right;">
+            <button class="load-url-btn" onclick="handleUrlInput()">⬇️ 解析链接</button>
+        </div>
+    </div>
+
+    <div class="preview-header">
+        <span style="font-size: 14px; color: #999;">长按拖拽排序 | 点击查看大图</span>
+        <button id="manageBtn" class="manage-btn" onclick="toggleSelectionMode()">批量管理/删除</button>
+    </div>
+
+    <div class="batch-actions" id="batchActions">
+        <div class="batch-btn-group">
+            <button class="batch-btn" onclick="selectAll()">全选</button>
+            <button class="batch-btn" onclick="deselectAll()">取消</button>
+        </div>
+        <button class="batch-btn danger" onclick="confirmDelete()">删除选中</button>
+    </div>
+
+    <div class="preview-area" id="previewArea"></div>
+
+    <button id="convertBtn" class="action-btn" onclick="startConversion()">✨ 开始 AI 智能转换</button>
+
+    <div class="progress-container" id="progressContainer">
+        <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progressBar"></div>
+        </div>
+        <div class="status-row">
+            <span id="statusText">准备中...</span>
+            <span id="progressCount" style="font-weight: bold;">(0/0)</span>
+        </div>
+    </div>
+
+    <div class="result-area">
+        <textarea id="resultOutput" class="result-box" placeholder="AI 识别后的文字将出现在这里..."></textarea>
+        <div class="result-actions">
+            <button class="restart-btn" onclick="confirmReset()">清空并开始新任务</button>
+            <button class="copy-btn" onclick="copyText()">复制全部内容</button>
+        </div>
+    </div>
+</div>
+
+<div class="lightbox" id="lightbox">
+    <div class="lightbox-content" id="lightboxContent">
+        <div class="lightbox-nav prev" onclick="prevImage(event)"><div class="nav-arrow">❮</div></div>
+        <img id="lightboxImg" src="" alt="大图预览">
+        <div class="lightbox-nav next" onclick="nextImage(event)"><div class="nav-arrow">❯</div></div>
+    </div>
+    <div class="lightbox-footer">
+        <div id="lightboxCounter">1 / 1</div>
+        <div class="lightbox-close-btn" onclick="closeLightbox()">关闭预览</div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal-box">
+        <div class="modal-title" id="modalTitle">🐱 喵喵提醒</div>
+        <div class="modal-content" id="modalText">
+            确定要删除选中的图片吗？<br>
+            <span style="font-size: 12px; color: #999; margin-top: 5px; display: inline-block;">删掉后就真的没有了哦...</span>
+        </div>
+        <div class="modal-actions" id="modalActions">
+            </div>
+    </div>
+</div>
+
+<canvas id="sliceCanvas" style="display: none;"></canvas>
+
+<script>
+    const PROXY_URL = "https://gcli.ggchan.dev/";
+    const API_KEY = "gg-gcli-xCpc8VNdE1kRE34dY-VpTMMQXI_CrpcjwNqCvRHed9A";
+    const MODEL_NAME = "gemini-2.5-pro-preview-06-05"; 
+    
+    const BATCH_SIZE = 3; 
+    const MAX_CONCURRENT_BATCHES = 2; 
+
+    const MAX_IMAGE_HEIGHT = 5000; 
+    const SLICE_HEIGHT = 3500;     
+    const SLICE_OVERLAP = 500;     
+
+    let imagesQueue = [];
+    let isSelectionMode = false;
+    let sortableInstance = null;
+    let currentLightboxIndex = -1;
+    let touchStartX = 0; let touchEndX = 0;
+
+    window.onload = function() {
+        initSortable();
+        initLightboxGestures();
+    }
+
+    // --- 弹窗辅助函数 ---
+    function showModal(title, contentHTML, buttons = []) {
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalText').innerHTML = contentHTML;
+        
+        const actionsContainer = document.getElementById('modalActions');
+        actionsContainer.innerHTML = ''; // 清空
+
+        buttons.forEach(btn => {
+            const buttonEl = document.createElement('button');
+            buttonEl.className = `modal-btn ${btn.type}`; // type: cancel / confirm
+            buttonEl.innerText = btn.text;
+            buttonEl.onclick = btn.onClick;
+            actionsContainer.appendChild(buttonEl);
+        });
+
+        document.getElementById('deleteModal').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('deleteModal').classList.remove('active');
+    }
+
+    // --- 清空重置逻辑 ---
+    function confirmReset() {
+        showModal(
+            "🐱 喵喵提醒", 
+            `确定要清空所有内容开始新任务吗？<br><span style="font-size: 12px; color: #999; margin-top: 5px; display: inline-block;">当前的图片和识别结果都会消失哦...</span>`,
+            [
+                { text: "取消", type: "cancel", onClick: closeModal },
+                { text: "确定清空", type: "confirm", onClick: executeReset }
+            ]
+        );
+    }
+
+    function executeReset() {
+        // 清空数据
+        imagesQueue = [];
+        renderPreview(); 
+        document.getElementById('resultOutput').value = "";
+        document.getElementById('progressContainer').style.display = 'none';
+        document.getElementById('convertBtn').disabled = false;
+        document.getElementById('convertBtn').innerText = "✨ 开始 AI 智能转换";
+        document.getElementById('fileInput').value = ""; 
+        isSelectionMode = false;
+        updateUIState();
+
+        // 重置成功弹窗 (Emoji: 😺)
+        setTimeout(() => {
+            showModal(
+                "😺 重置成功",
+                "一切都准备好了，随时可以开始新的转换！",
+                [
+                    { text: "好的", type: "confirm", onClick: closeModal }
+                ]
+            );
+        }, 100);
+    }
+
+    // --- 删除逻辑 (Emoji: 😿) ---
+    function confirmDelete() {
+        const selectedCount = imagesQueue.filter(img => img.selected).length;
+        if (selectedCount === 0) return;
+        
+        showModal(
+            "😿 喵喵提醒",
+            `确定要删除这 <b>${selectedCount}</b> 张图片吗？<br><span style="font-size: 12px; color: #999; margin-top: 5px; display: inline-block;">删掉后就真的没有了哦...</span>`,
+            [
+                { text: "取消", type: "cancel", onClick: closeModal },
+                { text: "狠心删除", type: "confirm", onClick: executeDelete }
+            ]
+        );
+    }
+
+    function executeDelete() {
+        closeModal();
+        const container = document.getElementById('previewArea');
+        const items = container.children;
+        const toDeleteIds = [];
+        for (let i = 0; i < items.length; i++) {
+            const id = parseFloat(items[i].dataset.id);
+            const imgObj = imagesQueue.find(img => img.id === id);
+            if (imgObj && imgObj.selected) {
+                items[i].classList.add('deleting');
+                toDeleteIds.push(id);
+            }
+        }
+        setTimeout(() => {
+            imagesQueue = imagesQueue.filter(img => !toDeleteIds.includes(img.id));
+            renderPreview();
+            if (imagesQueue.length === 0) { isSelectionMode = false; updateUIState(); }
+        }, 300);
+    }
+
+    // --- 切割逻辑 ---
+    async function processAndAddToQueue(base64Data, mimeType, originalFilename) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = function() {
+                if (img.height > MAX_IMAGE_HEIGHT && (img.height / img.width > 2)) {
+                    const slices = sliceImage(img, mimeType);
+                    imagesQueue.push(...slices);
+                } else {
+                    imagesQueue.push({
+                        id: Date.now() + Math.random(),
+                        base64: base64Data,
+                        mimeType: mimeType,
+                        selected: false,
+                        isDone: false,
+                        isSliced: false
+                    });
+                }
+                resolve();
+            };
+            img.src = `data:${mimeType};base64,${base64Data}`;
+        });
+    }
+
+    function sliceImage(img, mimeType) {
+        const slices = [];
+        const canvas = document.getElementById('sliceCanvas');
+        const ctx = canvas.getContext('2d');
+        const width = img.width;
+        const totalHeight = img.height;
+        
+        canvas.width = width;
+
+        let currentY = 0;
+        while (currentY < totalHeight) {
+            let currentSliceHeight = Math.min(SLICE_HEIGHT, totalHeight - currentY);
+            canvas.height = currentSliceHeight;
+            ctx.drawImage(img, 0, currentY, width, currentSliceHeight, 0, 0, width, currentSliceHeight);
+            
+            let sliceBase64 = canvas.toDataURL("image/jpeg", 0.98).split(',')[1];
+            slices.push({
+                id: Date.now() + Math.random(),
+                base64: sliceBase64,
+                mimeType: "image/jpeg",
+                selected: false,
+                isDone: false,
+                isSliced: true
+            });
+
+            currentY += (currentSliceHeight - SLICE_OVERLAP);
+            if (currentSliceHeight <= SLICE_OVERLAP && currentY < totalHeight) currentY = totalHeight; 
+            if (currentY >= totalHeight - SLICE_OVERLAP && currentY < totalHeight) currentY = totalHeight;
+        }
+        return slices;
+    }
+
+    // --- AI 转换 ---
+    async function startConversion() {
+        if (imagesQueue.length === 0) { alert("请先添加图片！"); return; }
+        const btn = document.getElementById('convertBtn');
+        const progressBar = document.getElementById('progressBar');
+        const statusText = document.getElementById('statusText');
+        const progressCount = document.getElementById('progressCount');
+        const output = document.getElementById('resultOutput');
+        const progressContainer = document.getElementById('progressContainer');
+        
+        btn.disabled = true;
+        output.value = "";
+        progressContainer.style.display = 'block';
+        progressBar.style.width = '0%';
+        imagesQueue.forEach(img => img.isDone = false);
+        renderPreview();
+
+        let completedImages = 0;
+        const total = imagesQueue.length;
+        const finalResults = new Array(total).fill(""); 
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+        const batches = [];
+        for (let i = 0; i < total; i += BATCH_SIZE) {
+            batches.push({
+                items: imagesQueue.slice(i, i + BATCH_SIZE),
+                startIndex: i
+            });
+        }
+
+        const processBatch = async (batch) => {
+            const count = batch.items.length;
+            const parts = [
+                { "text": `你是一个OCR助手。我将发送 ${count} 张图片。
+规则：
+1. **纯净OCR**：不需要你去除重复内容，只要把图片里的字完整识别出来即可。
+2. **格式**：保留空行，使用中文标点。
+3. **不输出页码**：尽量不要识别底部的页码数字。` }
+            ];
+
+            batch.items.forEach(img => {
+                parts.push({ "inline_data": { "mime_type": img.mimeType, "data": img.base64 } });
+            });
+
+            const payload = { "contents": [{ "parts": parts }] };
+            const requestUrl = `${PROXY_URL}v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+            
+            let retryCount = 0;
+            let batchText = "";
+
+            while (retryCount < 20) {
+                try {
+                    const response = await fetch(requestUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.status === 429) {
+                        statusText.innerText = `AI 正在冷却... (${20-retryCount}次)`;
+                        statusText.style.color = "#ff9800";
+                        await sleep(15000 + Math.random() * 5000); 
+                        retryCount++;
+                        continue;
+                    }
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.candidates && data.candidates[0].content) {
+                            batchText = data.candidates[0].content.parts[0].text.trim();
+                        } else {
+                            batchText = "";
+                        }
+                        break; 
+                    } else {
+                        await sleep(3000);
+                        retryCount++;
+                    }
+                } catch (e) { await sleep(3000); retryCount++; }
+            }
+
+            completedImages += count;
+            finalResults[batch.startIndex] = batchText;
+            batch.items.forEach(img => img.isDone = true);
+
+            const pct = (completedImages / total) * 90; 
+            progressBar.style.width = `${pct}%`;
+            progressCount.innerText = `(${completedImages}/${total})`;
+            statusText.style.color = "#7f8c8d";
+            statusText.innerText = "正在逐片识别...";
+        };
+
+        try {
+            const pool = [];
+            for (const batch of batches) {
+                const task = async () => await processBatch(batch);
+                pool.push(task);
+            }
+            
+            async function asyncPool(limit, tasks) {
+                const ret = [];
+                const executing = [];
+                for (const item of tasks) {
+                    const p = Promise.resolve().then(() => item());
+                    ret.push(p);
+                    if (limit <= tasks.length) {
+                        const e = p.then(() => executing.splice(executing.indexOf(e), 1));
+                        executing.push(e);
+                        if (executing.length >= limit) await Promise.race(executing);
+                    }
+                }
+                return Promise.all(ret);
+            }
+            
+            await asyncPool(MAX_CONCURRENT_BATCHES, pool);
+            
+            let rawText = finalResults.join("\n\n");
+            // 只要图片数>1，或者有切片，都进行“总编辑精修”
+            const shouldClean = imagesQueue.length > 1 || imagesQueue.some(img => img.isSliced);
+
+            if (shouldClean && rawText.length > 10 && rawText.length < 50000) {
+                statusText.innerText = "正在进行最终拼合与去重...";
+                statusText.style.color = "#5e6b7c";
+                progressBar.style.width = '95%';
+                
+                // 强力拼合 Prompt
+                const cleanPrompt = `你是一名专业小说编辑。以下是一篇由OCR识别生成的文本，可能包含：
+1. **多页标题重复**：例如每一页开头都有“第一感”。请只保留最开始的一个标题，删除后续页面的重复标题。
+2. **页码残留**：请删除文中残留的页码数字（如单独的 1, 2, 3）。
+3. **断句断行**：请修复因翻页导致的句子断裂，将上一页结尾和下一页开头合并为通顺的段落。
+4. **重复段落**：如果是长图切片，请删除重叠内容。
+
+**请直接输出整理好、连贯的全文，不要做任何摘要或解释。**
+
+以下是待处理文本：
+${rawText}`;
+
+                const cleanPayload = { "contents": [{ "parts": [{ "text": cleanPrompt }] }] };
+                const cleanUrl = `${PROXY_URL}v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+                
+                let finalRetry = 0;
+                let finalText = rawText; 
+
+                while (finalRetry < 5) {
+                    try {
+                        const res = await fetch(cleanUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(cleanPayload)
+                        });
+                        if (res.status === 429) {
+                            await sleep(10000); finalRetry++; continue;
+                        }
+                        if (res.ok) {
+                            const d = await res.json();
+                            if (d.candidates && d.candidates[0].content) {
+                                finalText = d.candidates[0].content.parts[0].text.trim();
+                            }
+                            break;
+                        } else {
+                            await sleep(3000); finalRetry++;
+                        }
+                    } catch(e) { await sleep(3000); finalRetry++; }
+                }
+                output.value = finalText;
+            } else {
+                output.value = rawText;
+            }
+
+            progressBar.style.width = '100%';
+            statusText.innerText = "全部转换完成！";
+            renderPreview(); 
+
+        } catch (error) {
+            progressBar.style.background = '#ff4d4f';
+            statusText.innerText = "错误：" + error.message;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // --- 基础UI功能 ---
+    function initSortable() {
+        const el = document.getElementById('previewArea');
+        sortableInstance = new Sortable(el, {
+            animation: 300, delay: 200, delayOnTouchOnly: true,
+            chosenClass: 'sortable-chosen', ghostClass: 'sortable-ghost', dragClass: 'sortable-drag',
+            onChoose: function(evt) { if (navigator.vibrate) navigator.vibrate(70); },
+            onEnd: function (evt) {
+                const item = imagesQueue.splice(evt.oldIndex, 1)[0];
+                imagesQueue.splice(evt.newIndex, 0, item);
+                refreshIndices();
+            }
+        });
+    }
+    function refreshIndices() {
+        document.querySelectorAll('.preview-item').forEach((item, index) => {
+            const badge = item.querySelector('.preview-index');
+            if(badge) badge.innerText = index + 1;
+        });
+    }
+    function switchTab(mode) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.input-group').forEach(g => g.classList.remove('active'));
+        if (mode === 'upload') {
+            document.querySelectorAll('.tab')[0].classList.add('active');
+            document.getElementById('group-upload').classList.add('active');
+        } else {
+            document.querySelectorAll('.tab')[1].classList.add('active');
+            document.getElementById('group-url').classList.add('active');
+        }
+    }
+    function renderPreview() {
+        const container = document.getElementById('previewArea');
+        container.innerHTML = ""; 
+        imagesQueue.forEach((imgObj, index) => {
+            const div = document.createElement('div');
+            let classes = 'preview-item';
+            if (isSelectionMode) classes += ' selection-mode';
+            if (imgObj.selected) classes += ' selected';
+            if (imgObj.isDone) classes += ' done';
+            if (imgObj.isSliced) classes += ' sliced';
+            div.className = classes;
+            div.dataset.id = imgObj.id;
+            const indexBadge = document.createElement('div');
+            indexBadge.className = 'preview-index';
+            indexBadge.innerText = index + 1;
+            div.appendChild(indexBadge);
+            const img = document.createElement('img');
+            img.src = `data:${imgObj.mimeType};base64,${imgObj.base64}`;
+            div.appendChild(img);
+            div.onclick = function() {
+                if (isSelectionMode) toggleImageSelection(imgObj.id);
+                else openLightbox(index);
+            };
+            container.appendChild(div);
+        });
+        updateUIState();
+    }
+    function updateUIState() {
+        const btn = document.getElementById('convertBtn');
+        const manageBtn = document.getElementById('manageBtn');
+        const batchBar = document.getElementById('batchActions');
+        btn.innerText = `✨ 开始 AI 智能转换`;
+        if (isSelectionMode) {
+            batchBar.classList.add('show');
+            manageBtn.classList.add('active');
+            manageBtn.innerText = "完成管理";
+            btn.style.display = 'none';
+            if(sortableInstance) sortableInstance.option("disabled", true);
+        } else {
+            batchBar.classList.remove('show');
+            manageBtn.classList.remove('active');
+            manageBtn.innerText = "批量管理/删除";
+            btn.style.display = 'block';
+            if(sortableInstance) sortableInstance.option("disabled", false);
+        }
+    }
+    function toggleSelectionMode() {
+        isSelectionMode = !isSelectionMode;
+        if (!isSelectionMode) imagesQueue.forEach(img => img.selected = false);
+        renderPreview();
+    }
+    function toggleImageSelection(id) {
+        const img = imagesQueue.find(i => i.id === id);
+        if (img) { img.selected = !img.selected; renderPreview(); }
+    }
+    function selectAll() { imagesQueue.forEach(img => img.selected = true); renderPreview(); }
+    function deselectAll() { imagesQueue.forEach(img => img.selected = false); renderPreview(); }
+    function initLightboxGestures() {
+        const lb = document.getElementById('lightboxContent'); 
+        lb.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
+        lb.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, {passive: true});
+    }
+    function handleSwipe() {
+        if (touchStartX - touchEndX > 50) nextImage();
+        if (touchEndX - touchStartX > 50) prevImage();
+    }
+    function openLightbox(index) {
+        if (index < 0 || index >= imagesQueue.length) return;
+        currentLightboxIndex = index;
+        updateLightboxImage();
+        document.getElementById('lightbox').classList.add('active');
+        document.getElementById('lightboxContent').scrollTop = 0;
+    }
+    function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+    function updateLightboxImage() {
+        const imgObj = imagesQueue[currentLightboxIndex];
+        const imgEl = document.getElementById('lightboxImg');
+        const counter = document.getElementById('lightboxCounter');
+        const contentEl = document.getElementById('lightboxContent');
+        imgEl.style.opacity = 0.3;
+        setTimeout(() => imgEl.style.opacity = 1, 50);
+        imgEl.src = `data:${imgObj.mimeType};base64,${imgObj.base64}`;
+        counter.innerText = `${currentLightboxIndex + 1} / ${imagesQueue.length}`;
+        contentEl.scrollTop = 0;
+    }
+    function nextImage(e) { if(e) e.stopPropagation(); if (currentLightboxIndex < imagesQueue.length - 1) { currentLightboxIndex++; updateLightboxImage(); } }
+    function prevImage(e) { if(e) e.stopPropagation(); if (currentLightboxIndex > 0) { currentLightboxIndex--; updateLightboxImage(); } }
+    async function handleFileSelect() {
+        const fileInput = document.getElementById('fileInput');
+        const files = Array.from(fileInput.files);
+        if (files.length === 0) return;
+        const loadBtn = document.querySelector('.upload-trigger');
+        const originalText = loadBtn.innerText;
+        loadBtn.innerText = "⏳ 正在智能处理图片...";
+        loadBtn.style.pointerEvents = "none";
+        for (const file of files) {
+            const reader = new FileReader();
+            await new Promise((resolve) => {
+                reader.onload = async function(e) {
+                    const base64 = e.target.result.split(',')[1];
+                    await processAndAddToQueue(base64, file.type, file.name);
+                    resolve();
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        renderPreview();
+        fileInput.value = '';
+        loadBtn.innerText = originalText;
+        loadBtn.style.pointerEvents = "auto";
+    }
+    async function handleUrlInput() {
+        const text = document.getElementById('urlInput').value.trim();
+        if (!text) return;
+        const urls = text.split(/[\n\s]+/).filter(u => u.length > 5);
+        if (urls.length === 0) return;
+        const loadBtn = document.querySelector('.load-url-btn');
+        loadBtn.innerText = "⏳ 正在下载并处理..."; loadBtn.disabled = true;
+        for (const url of urls) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Fetch failed");
+                const blob = await response.blob();
+                const base64 = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                    reader.readAsDataURL(blob);
+                });
+                await processAndAddToQueue(base64, blob.type, "url_image");
+            } catch (error) { console.error("加载失败:", url); }
+        }
+        renderPreview();
+        loadBtn.innerText = "⬇️ 解析链接"; loadBtn.disabled = false; document.getElementById('urlInput').value = "";
+    }
+    function copyText() {
+        const copyText = document.getElementById("resultOutput");
+        if (!copyText.value) return;
+        copyText.select(); document.execCommand("copy");
+        const btn = document.querySelector('.copy-btn');
+        const oldText = btn.innerText;
+        btn.innerText = "✅ 已复制";
+        setTimeout(() => btn.innerText = oldText, 2000);
+    }
+</script>
+
+</body>
+</html>
